@@ -52,23 +52,32 @@ GhostTrainer/
 - AWS Account with Bedrock access (Claude 3.5 Sonnet enabled in `us-east-1` or `us-west-2`)
 
 ### 1. Configure Environment Variables
-Copy and fill out your AWS credentials in `.env`:
+Copy and fill out your credentials:
 ```bash
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=us-east-1
-BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+cp .env.example .env
 ```
+*(Note: If AWS credentials are unset, GhostTrainer automatically falls back to deterministic rule-based coaching algorithms for zero-failure local testing and offline demos!)*
 
 ### 2. Run with Docker Compose
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ### 3. Service Endpoints
-- **Ring Doorbell Simulator:** http://localhost:8001
-- **Alexa+ MCP Server:** http://localhost:8002/mcp
-- **Fire TV Smart Mirror UI:** http://localhost:3000
+- **Ring Doorbell Simulator:** http://localhost:8001 (Interactive dashboard & webhook triggers)
+- **Alexa+ MCP Server:** http://localhost:8002/mcp (Streamable HTTP JSON-RPC 2.0)
+- **Fire TV Smart Mirror UI:** http://localhost:3000 (10-foot UI with MoveNet CV & Picture-in-Picture)
+
+### 4. Automated End-to-End Demo Loop
+Run the complete cross-device simulation script in one command:
+```bash
+python3 scripts/demo_flow.py
+```
+
+### 5. Running Automated Unit Tests
+```bash
+pytest packages/bedrock-coach/tests/ apps/ring-simulator/test_ring_simulator.py apps/alexa-mcp-server/test_alexa_mcp.py
+```
 
 ---
 
