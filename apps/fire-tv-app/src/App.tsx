@@ -17,6 +17,7 @@ import {
 import {
   createMoveNetDetector,
   analyzeSquatBiomechanics,
+  analyzePushupBiomechanics,
   drawSkeleton,
 } from './services/poseDetection';
 import { RingPiPModal } from './components/RingPiPModal';
@@ -43,6 +44,7 @@ export default function App() {
   const [workoutComplete, setWorkoutComplete] = useState<boolean>(false);
 
   // Exercise state
+  const [selectedExercise, setSelectedExercise] = useState<'Squat' | 'Push-up'>('Squat');
   const [targetReps, setTargetReps] = useState<number>(10);
   const [repsCompleted, setRepsCompleted] = useState<number>(0);
   const [currentDepth, setCurrentDepth] = useState<number>(0);
@@ -213,7 +215,9 @@ export default function App() {
           const poses = await detectorRef.current.estimatePoses(video);
           if (poses && poses.length > 0) {
             const keypoints = poses[0].keypoints;
-            const bio = analyzeSquatBiomechanics(keypoints);
+            const bio = selectedExercise === 'Squat'
+              ? analyzeSquatBiomechanics(keypoints)
+              : analyzePushupBiomechanics(keypoints);
 
             if (bio) {
               setCurrentDepth(bio.squatDepthPct);
@@ -339,11 +343,11 @@ export default function App() {
     setWorkoutComplete(false);
     setRepsCompleted(0);
     setRepHistory([]);
-    setLatestCue('Workout initiated! Begin squats when ready.');
+    setLatestCue(`Workout initiated! Begin ${selectedExercise.toLowerCase()}s when ready.`);
     setCueUrgency('normal');
     squatPhaseRef.current = 'UP';
     repStartTimeRef.current = Date.now();
-    speakCue('GhostTrainer initiated. Let\'s begin squats!');
+    speakCue(`GhostTrainer initiated. Let's begin ${selectedExercise.toLowerCase()}s!`);
     startCamera();
     playBeep(523.25, 'sine', 0.2); // C5
   };
@@ -360,6 +364,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_name: 'Alex',
+          exercise_name: selectedExercise,
           total_duration_seconds: 120.0,
         }),
       });
@@ -376,11 +381,11 @@ export default function App() {
     }
 
     setRecoveryBrief({
-      summary: `Awesome effort! Completed ${repsCompleted} reps with deep hip flexion.`,
+      summary: `Awesome effort! Completed ${repsCompleted} reps of ${selectedExercise}s with solid form.`,
       overall_score: 92,
-      strengths: ['Great pacing (1.7s per rep)', 'Chest remained upright for 90% of set'],
-      areas_for_improvement: ['Slight knee cave detected on rep 7'],
-      recovery_recommendations: ['Perform 5 minutes of quad & hip stretching', 'Rehydrate with 500ml of water'],
+      strengths: ['Consistent tempo (1.7s per rep)', `${selectedExercise === 'Squat' ? 'Chest stayed tall' : 'Core remained braced'} for 90% of set`],
+      areas_for_improvement: [selectedExercise === 'Squat' ? 'Slight knee cave detected on rep 7' : 'Slight hip sag on rep 7'],
+      recovery_recommendations: ['Perform 5 minutes of mobility stretching', 'Rehydrate with 500ml of water'],
     });
     speakCue('Workout complete! Recovery brief ready.');
   };
@@ -407,8 +412,10 @@ export default function App() {
 
     setTimeout(() => {
       setCurrentDepth(0);
-      const isSag = repsCompleted === 3;
-      handleRepFinished(isSag ? 78 : 95, 1.8, isSag ? 'chest_sag' : undefined);
+      const isSag = repsCompleted === 2;
+      const flaw = isSag ? (selectedExercise === 'Squat' ? 'chest_sag' : 'hip_sag') : undefined;
+      const depth = isSag ? 78 : 95;
+      handleRepFinished(depth, 1.8, flaw);
     }, 600);
   };
 
@@ -464,7 +471,32 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 bg-gray-900/90 p-1.5 rounded-2xl border border-gray-800">
+            <button
+              onClick={() => !workoutActive && setSelectedExercise('Squat')}
+              disabled={workoutActive}
+              className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all ${
+                selectedExercise === 'Squat'
+                  ? 'bg-cyan-500 text-gray-950 shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              🏋️ Squats
+            </button>
+            <button
+              onClick={() => !workoutActive && setSelectedExercise('Push-up')}
+              disabled={workoutActive}
+              className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all ${
+                selectedExercise === 'Push-up'
+                  ? 'bg-cyan-500 text-gray-950 shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              💪 Push-ups
+            </button>
+          </div>
+
           <div className="flex items-center space-x-2 bg-gray-900/80 px-4 py-2 rounded-xl border border-gray-800">
             <Tv className="w-5 h-5 text-gray-400" />
             <span className="text-sm font-semibold text-gray-300">10-Foot UI Active</span>
@@ -497,7 +529,7 @@ export default function App() {
             </div>
             <h2 className="text-4xl font-extrabold text-white mb-3">Ambient Smart Mirror Feed</h2>
             <p className="text-lg text-gray-300 max-w-lg mb-6">
-              {cameraError || 'Position yourself 6-8 feet away from your Fire TV. MoveNet tracks depth and rep cadence automatically.'}
+              {cameraError || `Position yourself 6-8 feet away from your Fire TV. MoveNet tracks ${selectedExercise.toLowerCase()} depth and cadence automatically.`}
             </p>
           </div>
         )}
@@ -509,7 +541,7 @@ export default function App() {
             <div className="flex justify-between items-start">
               {/* Rep Counter Card */}
               <div className="bg-gray-950/90 border-2 border-cyan-500/60 backdrop-blur-md rounded-3xl p-6 shadow-2xl min-w-[240px]">
-                <span className="text-xs font-bold tracking-widest text-cyan-400 uppercase">Squat Reps</span>
+                <span className="text-xs font-bold tracking-widest text-cyan-400 uppercase">{selectedExercise} Reps</span>
                 <div className="flex items-baseline space-x-2 mt-1">
                   <span className="text-7xl font-black text-white">{repsCompleted}</span>
                   <span className="text-3xl font-bold text-gray-500">/ {targetReps}</span>
@@ -524,14 +556,18 @@ export default function App() {
 
               {/* Depth & Biomechanics Gauge */}
               <div className="bg-gray-950/90 border-2 border-gray-800 backdrop-blur-md rounded-3xl p-6 shadow-2xl min-w-[240px] text-right">
-                <span className="text-xs font-bold tracking-widest text-gray-400 uppercase">Hip Depth Target</span>
+                <span className="text-xs font-bold tracking-widest text-gray-400 uppercase">
+                  {selectedExercise === 'Squat' ? 'Hip Depth Target' : 'Elbow Flexion Target'}
+                </span>
                 <div className="flex items-baseline justify-end space-x-2 mt-1">
                   <span className={`text-6xl font-black ${currentDepth >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>
                     {currentDepth > 0 ? `${currentDepth}%` : '--'}
                   </span>
                 </div>
                 <span className="text-sm font-semibold text-gray-400">
-                  {currentDepth >= 85 ? '✓ Parallel Depth' : 'Sink to 90°'}
+                  {selectedExercise === 'Squat'
+                    ? (currentDepth >= 85 ? '✓ Parallel Depth' : 'Sink to 90°')
+                    : (currentDepth >= 85 ? '✓ Chest to Deck' : 'Target 90° Elbow')}
                 </span>
               </div>
             </div>

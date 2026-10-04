@@ -146,6 +146,89 @@ export function analyzeSquatBiomechanics(
 }
 
 /**
+ * Analyzes body keypoints to assess push-up biomechanics and core stability.
+ */
+export function analyzePushupBiomechanics(
+  keypoints: Keypoint[],
+  minConfidence = 0.35
+): BiomechanicsState | null {
+  const findPt = (name: string) => keypoints.find((k) => k.name === name);
+
+  const leftShoulder = findPt('left_shoulder');
+  const leftElbow = findPt('left_elbow');
+  const leftWrist = findPt('left_wrist');
+  const leftHip = findPt('left_hip');
+  const leftAnkle = findPt('left_ankle');
+
+  const rightShoulder = findPt('right_shoulder');
+  const rightElbow = findPt('right_elbow');
+  const rightWrist = findPt('right_wrist');
+  const rightHip = findPt('right_hip');
+  const rightAnkle = findPt('right_ankle');
+
+  const leftConf =
+    ((leftShoulder?.score || 0) + (leftElbow?.score || 0) + (leftWrist?.score || 0)) / 3;
+  const rightConf =
+    ((rightShoulder?.score || 0) + (rightElbow?.score || 0) + (rightWrist?.score || 0)) / 3;
+
+  const useLeft = leftConf >= rightConf;
+  const shoulder = useLeft ? leftShoulder : rightShoulder;
+  const elbow = useLeft ? leftElbow : rightElbow;
+  const wrist = useLeft ? leftWrist : rightWrist;
+  const hip = useLeft ? leftHip : rightHip;
+  const ankle = useLeft ? leftAnkle : rightAnkle;
+
+  if (
+    !shoulder ||
+    !elbow ||
+    !wrist ||
+    (shoulder.score || 0) < minConfidence ||
+    (elbow.score || 0) < minConfidence ||
+    (wrist.score || 0) < minConfidence
+  ) {
+    return null;
+  }
+
+  // Calculate elbow flexion angle (180 = straight arms plank, 90 = chest to floor)
+  const elbowAngle = calculateAngle(shoulder, elbow, wrist);
+
+  // Depth percentage: 165 deg -> 0%, 90 deg -> 100%
+  const depthPct = Math.max(
+    0,
+    Math.min(125, Math.round(((165 - elbowAngle) / (165 - 90)) * 100))
+  );
+
+  let detectedFlaw: string | null = null;
+  let bodyAlignmentAngle = 180;
+
+  // Check core / spine alignment (Shoulder -> Hip -> Ankle)
+  if (hip && ankle && (hip.score || 0) >= minConfidence && (ankle.score || 0) >= minConfidence) {
+    bodyAlignmentAngle = calculateAngle(shoulder, hip, ankle);
+    if (bodyAlignmentAngle < 155) {
+      detectedFlaw = 'hip_sag';
+    }
+  }
+
+  let phase: BiomechanicsState['phase'] = 'STANDING';
+  if (elbowAngle > 150) {
+    phase = 'STANDING';
+  } else if (elbowAngle <= 95) {
+    phase = 'BOTTOM';
+  } else {
+    phase = 'DESCENDING';
+  }
+
+  return {
+    kneeAngle: elbowAngle, // Reuse primary angle field for HUD
+    squatDepthPct: depthPct,
+    torsoAngle: bodyAlignmentAngle,
+    isParallel: elbowAngle <= 95,
+    detectedFlaw,
+    phase,
+  };
+}
+
+/**
  * Draws real-time skeleton overlay with glowing joints on canvas.
  */
 export function drawSkeleton(

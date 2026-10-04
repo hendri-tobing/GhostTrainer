@@ -254,6 +254,7 @@ async def receive_rep_telemetry(payload: RepTelemetryPayload) -> Dict[str, Any]:
 class WorkoutCompletePayload(BaseModel):
     user_name: str = "Alex"
     total_duration_seconds: float = 120.0
+    exercise_name: Optional[str] = None
 
 
 @app.post("/api/workout/complete")
@@ -263,9 +264,10 @@ async def finish_workout(payload: WorkoutCompletePayload) -> Dict[str, Any]:
         RepMetric(rep_number=i, depth_percentage=92.0, duration_seconds=1.8)
         for i in range(1, session_state.get("target_reps", 15) + 1)
     ]
+    ex_name = payload.exercise_name or session_state.get("current_exercise", "Squat")
     session_data = WorkoutSessionData(
         user_name=payload.user_name,
-        exercise_name=session_state.get("current_exercise", "Squat"),
+        exercise_name=ex_name,
         target_reps=session_state.get("target_reps", 15),
         completed_reps=session_state.get("completed_reps", len(reps_data)),
         reps=reps_data,

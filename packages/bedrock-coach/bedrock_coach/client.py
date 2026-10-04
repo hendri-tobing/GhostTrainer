@@ -78,8 +78,12 @@ class BedrockCoachClient:
                 cue = "Keep your chest high and eyes forward!"
             elif request.detected_issue == "knee_cave":
                 cue = "Push knees outward over toes!"
+            elif request.detected_issue == "hip_sag":
+                cue = "Engage your core, don't let your hips sag!"
+            elif request.detected_issue == "elbow_flare":
+                cue = "Tuck your elbows to 45 degrees!"
             elif request.latest_depth_percentage < 80.0:
-                cue = "Sink a little deeper for full depth!"
+                cue = "Go a little deeper for full range of motion!"
             elif request.current_rep == request.target_reps:
                 cue = f"Final rep finished! Outstanding job, {request.user_name}!"
             else:
