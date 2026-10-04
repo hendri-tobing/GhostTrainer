@@ -220,3 +220,62 @@ async def handle_mcp(request: Request) -> JSONResponse:
         "id": msg_id,
         "error": {"code": -32600, "message": f"Unsupported method: {method}"}
     })
+
+
+class RepTelemetryPayload(BaseModel):
+    rep_number: int
+    depth_percentage: float
+    duration_seconds: float = 1.8
+    detected_issue: Optional[str] = None
+
+
+@app.post("/api/telemetry/rep")
+async def receive_rep_telemetry(payload: RepTelemetryPayload) -> Dict[str, Any]:
+    """Ingest rep telemetry from Fire TV Smart Mirror and return AWS Bedrock coaching cue."""
+    session_state["completed_reps"] = payload.rep_number
+    session_state["reps"].append(payload.model_dump())
+
+    req = RealtimeCueRequest(
+        current_rep=payload.rep_number,
+        target_reps=session_state.get("target_reps", 15),
+        latest_depth_percentage=payload.depth_percentage,
+        detected_issue=payload.detected_issue,
+    )
+    cue_res = await bedrock_client.generate_realtime_cue(req)
+
+    return {
+        "status": "success",
+        "rep_number": payload.rep_number,
+        "cue_text": cue_res.cue_text,
+        "urgency": cue_res.urgency,
+    }
+
+
+class WorkoutCompletePayload(BaseModel):
+    user_name: str = "Alex"
+    total_duration_seconds: float = 120.0
+
+
+@app.post("/api/workout/complete")
+async def finish_workout(payload: WorkoutCompletePayload) -> Dict[str, Any]:
+    """Conclude workout and return comprehensive Bedrock recovery summary."""
+    reps_data = [RepMetric(**r) for r in session_state["reps"]] if session_state["reps"] else [
+        RepMetric(rep_number=i, depth_percentage=92.0, duration_seconds=1.8)
+        for i in range(1, session_state.get("target_reps", 15) + 1)
+    ]
+    session_data = WorkoutSessionData(
+        user_name=payload.user_name,
+        exercise_name=session_state.get("current_exercise", "Squat"),
+        target_reps=session_state.get("target_reps", 15),
+        completed_reps=session_state.get("completed_reps", len(reps_data)),
+        reps=reps_data,
+        total_duration_seconds=payload.total_duration_seconds,
+    )
+    brief = await bedrock_client.generate_recovery_brief(session_data)
+    session_state["active"] = False
+
+    return {
+        "status": "completed",
+        "brief": brief.model_dump(),
+    }
+

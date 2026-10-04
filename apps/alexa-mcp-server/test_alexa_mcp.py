@@ -67,3 +67,32 @@ def test_webhook_ring() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "acknowledged"
+
+
+def test_receive_rep_telemetry() -> None:
+    payload = {
+        "rep_number": 1,
+        "depth_percentage": 94.0,
+        "duration_seconds": 1.7,
+        "detected_issue": None
+    }
+    response = client.post("/api/telemetry/rep", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "cue_text" in data
+    assert data["rep_number"] == 1
+
+
+def test_finish_workout() -> None:
+    payload = {
+        "user_name": "Alex",
+        "total_duration_seconds": 90.0
+    }
+    response = client.post("/api/workout/complete", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    assert "brief" in data
+    assert "overall_score" in data["brief"]
+

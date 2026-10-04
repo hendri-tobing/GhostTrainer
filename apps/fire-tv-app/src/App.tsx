@@ -14,6 +14,11 @@ import {
   AlertTriangle,
   Camera
 } from 'lucide-react';
+import {
+  createMoveNetDetector,
+  analyzeSquatBiomechanics,
+  drawSkeleton,
+} from './services/poseDetection';
 
 interface RepData {
   repNumber: number;
@@ -40,7 +45,7 @@ export default function App() {
   const [targetReps, setTargetReps] = useState<number>(10);
   const [repsCompleted, setRepsCompleted] = useState<number>(0);
   const [currentDepth, setCurrentDepth] = useState<number>(0);
-  const [repState, setRepState] = useState<'UP' | 'DOWN'>('UP');
+  const [currentKneeAngle, setCurrentKneeAngle] = useState<number>(180);
   const [repHistory, setRepHistory] = useState<RepData[]>([]);
 
   // Feedback & AI cues
@@ -52,9 +57,32 @@ export default function App() {
   // Hardware/Webcam state
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [detectorReady, setDetectorReady] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const detectorRef = useRef<any>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  // Squat State Machine Tracker
+  const squatPhaseRef = useRef<'UP' | 'DOWN'>('UP');
+  const repStartTimeRef = useRef<number>(Date.now());
+  const maxDepthInCurrentRepRef = useRef<number>(0);
+  const currentFlawRef = useRef<string | null>(null);
+
+  // Text-To-Speech voice cue
+  const speakCue = (text: string) => {
+    try {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        utterance.pitch = 1.0;
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch {
+      // Speech may not be supported or allowed
+    }
+  };
 
   // Sound generator
   const playBeep = (freq = 440, type: OscillatorType = 'sine', duration = 0.15) => {
@@ -113,8 +141,10 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.last_ring_event && !ringAlert) {
-            setRingAlert(data.last_ring_event.message || 'Coach Jordan is at your front door!');
+            const msg = data.last_ring_event.message || 'Coach Jordan is at your front door!';
+            setRingAlert(msg);
             playBeep(880, 'triangle', 0.4);
+            speakCue("Your Ghost Coach has arrived at the front door!");
             setTimeout(() => setRingAlert(null), 8000);
           }
           if (data.active && !workoutActive) {
@@ -129,6 +159,160 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [workoutActive, ringAlert]);
+
+  // Load MoveNet detector
+  useEffect(() => {
+    const initDetector = async () => {
+      try {
+        const detector = await createMoveNetDetector();
+        if (detector) {
+          detectorRef.current = detector;
+          setDetectorReady(true);
+        }
+      } catch (err) {
+        console.warn('MoveNet detector initialization error:', err);
+      }
+    };
+    initDetector();
+  }, []);
+
+  // Computer Vision Pose Detection Loop
+  useEffect(() => {
+    let active = true;
+
+    const detectPose = async () => {
+      if (
+        !active ||
+        !workoutActive ||
+        !videoRef.current ||
+        !canvasRef.current ||
+        videoRef.current.readyState < 2
+      ) {
+        if (active && workoutActive) {
+          animationFrameRef.current = requestAnimationFrame(detectPose);
+        }
+        return;
+      }
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) return;
+
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (detectorRef.current) {
+        try {
+          const poses = await detectorRef.current.estimatePoses(video);
+          if (poses && poses.length > 0) {
+            const keypoints = poses[0].keypoints;
+            const bio = analyzeSquatBiomechanics(keypoints);
+
+            if (bio) {
+              setCurrentDepth(bio.squatDepthPct);
+              setCurrentKneeAngle(bio.kneeAngle);
+              drawSkeleton(ctx, keypoints, bio.detectedFlaw);
+
+              if (bio.detectedFlaw) {
+                currentFlawRef.current = bio.detectedFlaw;
+              }
+
+              // Update squat state machine
+              if (squatPhaseRef.current === 'UP' && bio.phase === 'BOTTOM') {
+                squatPhaseRef.current = 'DOWN';
+                maxDepthInCurrentRepRef.current = bio.squatDepthPct;
+              } else if (squatPhaseRef.current === 'DOWN') {
+                maxDepthInCurrentRepRef.current = Math.max(
+                  maxDepthInCurrentRepRef.current,
+                  bio.squatDepthPct
+                );
+                if (bio.phase === 'STANDING') {
+                  // Rep Completed!
+                  squatPhaseRef.current = 'UP';
+                  const duration = (Date.now() - repStartTimeRef.current) / 1000;
+                  repStartTimeRef.current = Date.now();
+                  const finishedDepth = maxDepthInCurrentRepRef.current;
+                  const issue = currentFlawRef.current || undefined;
+                  currentFlawRef.current = null;
+                  maxDepthInCurrentRepRef.current = 0;
+
+                  handleRepFinished(finishedDepth, duration, issue);
+                }
+              }
+            } else {
+              drawSkeleton(ctx, keypoints, null);
+            }
+          }
+        } catch {
+          // Frame skip or temporary inference issue
+        }
+      }
+
+      if (active && workoutActive) {
+        animationFrameRef.current = requestAnimationFrame(detectPose);
+      }
+    };
+
+    if (workoutActive && cameraActive) {
+      animationFrameRef.current = requestAnimationFrame(detectPose);
+    }
+
+    return () => {
+      active = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [workoutActive, cameraActive, repsCompleted, targetReps]);
+
+  const handleRepFinished = async (depth: number, duration: number, issue?: string) => {
+    const nextRep = repsCompleted + 1;
+    setRepsCompleted(nextRep);
+    playBeep(880, 'sine', 0.2);
+
+    const newRep: RepData = {
+      repNumber: nextRep,
+      depth,
+      duration: Math.max(1.0, duration),
+      issue,
+    };
+    setRepHistory((prev) => [...prev, newRep]);
+
+    // Send rep telemetry to Alexa+ MCP server / Bedrock
+    try {
+      const res = await fetch('http://localhost:8002/api/telemetry/rep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rep_number: nextRep,
+          depth_percentage: depth,
+          duration_seconds: newRep.duration,
+          detected_issue: issue,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLatestCue(data.cue_text);
+        setCueUrgency(data.urgency);
+        speakCue(data.cue_text);
+      }
+    } catch {
+      // Local fallback cue
+      const cue = issue === 'chest_sag' ? 'Keep your chest tall!' : `Rep ${nextRep} completed!`;
+      setLatestCue(cue);
+      speakCue(cue);
+    }
+
+    if (nextRep >= targetReps) {
+      setTimeout(completeWorkout, 1000);
+    }
+  };
 
   // Camera initialization
   const startCamera = async () => {
@@ -156,6 +340,9 @@ export default function App() {
     setRepHistory([]);
     setLatestCue('Workout initiated! Begin squats when ready.');
     setCueUrgency('normal');
+    squatPhaseRef.current = 'UP';
+    repStartTimeRef.current = Date.now();
+    speakCue('GhostTrainer initiated. Let\'s begin squats!');
     startCamera();
     playBeep(523.25, 'sine', 0.2); // C5
   };
@@ -167,25 +354,19 @@ export default function App() {
 
     // Request recovery brief from Alexa MCP / Bedrock
     try {
-      const res = await fetch('http://localhost:8002/mcp', {
+      const res = await fetch('http://localhost:8002/api/workout/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'brief_1',
-          method: 'tools/call',
-          params: {
-            name: 'generate_recovery_brief',
-            arguments: { user_name: 'Alex' },
-          },
+          user_name: 'Alex',
+          total_duration_seconds: 120.0,
         }),
       });
       if (res.ok) {
         const json = await res.json();
-        const contentStr = json.result?.content?.[0]?.text;
-        if (contentStr) {
-          const parsed = JSON.parse(contentStr);
-          setRecoveryBrief(parsed);
+        if (json.brief) {
+          setRecoveryBrief(json.brief);
+          speakCue('Workout completed! Excellent effort today.');
           return;
         }
       }
@@ -200,6 +381,7 @@ export default function App() {
       areas_for_improvement: ['Slight knee cave detected on rep 7'],
       recovery_recommendations: ['Perform 5 minutes of quad & hip stretching', 'Rehydrate with 500ml of water'],
     });
+    speakCue('Workout complete! Recovery brief ready.');
   };
 
   const resetWorkout = () => {
@@ -224,33 +406,8 @@ export default function App() {
 
     setTimeout(() => {
       setCurrentDepth(0);
-      const newRepNum = repsCompleted + 1;
-      setRepsCompleted(newRepNum);
-      playBeep(880, 'sine', 0.2);
-
-      const isSag = newRepNum === 4;
-      const cue = isSag
-        ? 'Keep your chest tall! Push through heels.'
-        : newRepNum === targetReps
-        ? 'Target reached! Phenomenal set!'
-        : `Rep ${newRepNum} locked in. Stay steady!`;
-
-      setLatestCue(cue);
-      setCueUrgency(isSag ? 'corrective' : newRepNum === targetReps ? 'milestone' : 'normal');
-
-      setRepHistory((prev) => [
-        ...prev,
-        {
-          repNumber: newRepNum,
-          depth: isSag ? 78 : 95,
-          duration: 1.8,
-          issue: isSag ? 'chest_sag' : undefined,
-        },
-      ]);
-
-      if (newRepNum >= targetReps) {
-        setTimeout(completeWorkout, 800);
-      }
+      const isSag = repsCompleted === 3;
+      handleRepFinished(isSag ? 78 : 95, 1.8, isSag ? 'chest_sag' : undefined);
     }, 600);
   };
 
@@ -268,6 +425,7 @@ export default function App() {
       });
       setRingAlert('🔔 Coach Jordan has arrived at your Front Porch!');
       playBeep(880, 'triangle', 0.4);
+      speakCue('Coach Jordan has arrived at your front door!');
       setTimeout(() => setRingAlert(null), 6000);
     } catch {
       setRingAlert('🔔 Coach Jordan has arrived at your Front Porch!');
@@ -316,14 +474,17 @@ export default function App() {
 
       {/* Main TV Mirror Viewport */}
       <main className="relative flex-1 my-6 rounded-3xl overflow-hidden bg-gray-950/80 border-2 border-gray-800 flex items-center justify-center">
-        {/* Video feed or Camera Simulator backdrop */}
+        {/* Video feed & Skeleton Overlay */}
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-60"
           playsInline
           muted
         />
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full pointer-events-none z-10 transform -scale-x-100"
+        />
 
         {!cameraActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-8 text-center bg-gradient-to-b from-gray-950/40 via-gray-900/60 to-gray-950/90">
