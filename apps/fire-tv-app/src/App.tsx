@@ -19,6 +19,7 @@ import {
   analyzeSquatBiomechanics,
   drawSkeleton,
 } from './services/poseDetection';
+import { RingPiPModal } from './components/RingPiPModal';
 
 interface RepData {
   repNumber: number;
@@ -435,15 +436,18 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen bg-[#0A0D14] text-white flex flex-col justify-between p-8 font-sans overflow-hidden">
-      {/* Ring Doorbell Ambient Summon Banner */}
+      {/* Ring Doorbell Ambient Summon Picture-in-Picture Feed */}
       {ringAlert && (
-        <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-50 bg-gradient-to-r from-orange-600 to-amber-500 border-2 border-white/40 shadow-2xl rounded-2xl px-8 py-5 flex items-center space-x-5 animate-bounce">
-          <Bell className="w-10 h-10 text-white animate-pulse" />
-          <div>
-            <h4 className="text-xl font-black uppercase tracking-wider text-white">Ring Doorstep Summon</h4>
-            <p className="text-lg font-medium text-white/95">{ringAlert}</p>
-          </div>
-        </div>
+        <RingPiPModal
+          coachName="Ghost Coach Jordan"
+          workoutType="Squat Power Routine"
+          message={ringAlert}
+          onAccept={() => {
+            setRingAlert(null);
+            startWorkout();
+          }}
+          onDismiss={() => setRingAlert(null)}
+        />
       )}
 
       {/* Top 10-Foot HUD Header */}
