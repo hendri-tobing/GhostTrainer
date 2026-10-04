@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: #0A0D14;
+  color: #FFFFFF;
+  user-select: none;
+}
+
+/* 10-foot UI TV Focus styles */
+.tv-focusable {
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tv-focused {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 4px #00F0FF, 0 10px 25px -5px rgba(0, 240, 255, 0.5);
+  border-color: #00F0FF !important;
+}
