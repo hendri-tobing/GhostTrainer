@@ -4,6 +4,7 @@
 [![Fire TV Track](https://img.shields.io/badge/Track-Fire%20TV%20($25k)-blue.svg)](https://amazonappdev2026.devpost.com/)
 [![AWS Builder Track](https://img.shields.io/badge/Mini%20Challenge-AWS%20Bedrock%20($5k)-yellow.svg)](https://amazonappdev2026.devpost.com/)
 [![Open Source](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/hendri-tobing/GhostTrainer/actions/workflows/ci.yml/badge.svg)](https://github.com/hendri-tobing/GhostTrainer/actions/workflows/ci.yml)
 
 > **GhostTrainer** transforms at-home fitness from a neglected routine into an unskippable real-world ritual across the Amazon ecosystem: Ring Doorbell, Alexa+ MCP, Fire TV Smart Mirror, and AWS Bedrock AI.
 
