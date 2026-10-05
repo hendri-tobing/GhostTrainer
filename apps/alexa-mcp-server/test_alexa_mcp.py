@@ -96,3 +96,85 @@ def test_finish_workout() -> None:
     assert "brief" in data
     assert "overall_score" in data["brief"]
 
+
+def test_overdepth_telemetry_then_complete() -> None:
+    # T1: Telemetry with depth > 100 should be clamped and not cause 500 in /api/workout/complete
+    rep_res = client.post("/api/telemetry/rep", json={
+        "rep_number": 1,
+        "depth_percentage": 113.0,
+        "duration_seconds": 1.7,
+        "detected_issue": None
+    })
+    assert rep_res.status_code == 200
+
+    finish_res = client.post("/api/workout/complete", json={
+        "user_name": "Alex",
+        "total_duration_seconds": 60.0
+    })
+    assert finish_res.status_code == 200
+    data = finish_res.json()
+    assert data["status"] == "completed"
+    assert "brief" in data
+
+
+def test_start_session_clears_ring_event() -> None:
+    # T2: Webhook notifies Ring event, start_workout_session clears it
+    client.post("/webhook/ring", json={
+        "event_type": "ding",
+        "coach_name": "Ghost Coach Jordan",
+        "workout_type": "Squat Power Routine"
+    })
+    status_before = client.get("/session/status").json()
+    assert status_before["last_ring_event"] is not None
+
+    mcp_call = client.post("/mcp", json={
+        "jsonrpc": "2.0",
+        "id": "clear-ring-test",
+        "method": "tools/call",
+        "params": {
+            "name": "start_workout_session",
+            "arguments": {"exercise_name": "Squat", "target_reps": 10}
+        }
+    })
+    assert mcp_call.status_code == 200
+
+    status_after = client.get("/session/status").json()
+    assert status_after["last_ring_event"] is None
+
+
+def test_rep_telemetry_detected_issue_roundtrip() -> None:
+    # T3: detected_issue survives into session_state and round-trips into WorkoutSessionData
+    client.post("/api/telemetry/rep", json={
+        "rep_number": 1,
+        "depth_percentage": 90.0,
+        "duration_seconds": 1.8,
+        "detected_issue": "chest_sag"
+    })
+    finish_res = client.post("/api/workout/complete", json={
+        "user_name": "Alex",
+        "total_duration_seconds": 60.0
+    })
+    assert finish_res.status_code == 200
+
+
+def test_reset_workout_endpoint() -> None:
+    # T12: POST /api/workout/reset clears active, reps, completed_reps, and last_ring_event
+    client.post("/webhook/ring", json={
+        "event_type": "ding",
+        "coach_name": "Ghost Coach Jordan",
+        "workout_type": "Squat Power Routine"
+    })
+    client.post("/api/telemetry/rep", json={
+        "rep_number": 1,
+        "depth_percentage": 90.0,
+        "duration_seconds": 1.5,
+    })
+    res = client.post("/api/workout/reset")
+    assert res.status_code == 200
+    status = client.get("/session/status").json()
+    assert status["active"] is False
+    assert status["completed_reps"] == 0
+    assert status["last_ring_event"] is None
+
+
+

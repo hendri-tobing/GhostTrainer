@@ -35,7 +35,7 @@ sequenceDiagram
 1. **Ring Doorbell Simulator (`apps/ring-simulator`)**
    - Built on FastAPI.
    - Emulates scheduled doorstep rings, motion triggers, and visual coach presence simulation.
-   - Dispatches webhooks to Alexa MCP and the Fire TV interface.
+   - Dispatches webhook to Alexa+ MCP; Fire TV consumes via /session/status polling.
 
 2. **Alexa+ MCP Server (`apps/alexa-mcp-server`)**
    - Model Context Protocol (MCP) server running over HTTP with JSON-RPC.

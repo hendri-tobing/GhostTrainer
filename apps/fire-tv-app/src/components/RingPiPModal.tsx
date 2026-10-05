@@ -2,10 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   Bell,
   X,
-  Volume2,
-  Video,
   Play,
-  Check,
   ShieldCheck,
   Radio
 } from 'lucide-react';
@@ -26,7 +23,34 @@ export const RingPiPModal: React.FC<RingPiPProps> = ({
   onDismiss,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [pipFocus, setPipFocus] = useState<'accept' | 'dismiss'>('accept');
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // D-Pad / Remote control navigation for Ring PiP Modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        setPipFocus((prev) => (prev === 'accept' ? 'dismiss' : 'accept'));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (pipFocus === 'accept') {
+          onAccept();
+        } else {
+          onDismiss();
+        }
+      } else if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {
+        e.preventDefault();
+        e.stopPropagation();
+        onDismiss();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pipFocus, onAccept, onDismiss]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -106,7 +130,11 @@ export const RingPiPModal: React.FC<RingPiPProps> = ({
       // Coach Torso / Athletic jacket
       ctx.fillStyle = '#0284c7';
       ctx.beginPath();
-      ctx.roundRect(coachX - 22, coachY - 24, 44, 52, 10);
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(coachX - 22, coachY - 24, 44, 52, 10);
+      } else {
+        ctx.rect(coachX - 22, coachY - 24, 44, 52);
+      }
       ctx.fill();
 
       // Coach Arms with Kettlebell
@@ -145,7 +173,7 @@ export const RingPiPModal: React.FC<RingPiPProps> = ({
   }, []);
 
   return (
-    <div className="absolute top-20 right-8 z-50 w-[420px] bg-gray-950/95 border-2 border-orange-500/80 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in slide-in-from-right duration-300">
+    <div className="absolute top-20 right-8 z-50 w-[420px] bg-gray-950/95 border-2 border-orange-500/80 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl animate-slideInRight duration-300">
       {/* Ring Header Bar */}
       <div className="bg-gradient-to-r from-orange-600 to-amber-600 px-4 py-2.5 flex items-center justify-between text-white">
         <div className="flex items-center space-x-2">
@@ -189,12 +217,17 @@ export const RingPiPModal: React.FC<RingPiPProps> = ({
       {/* Action / Summon Details */}
       <div className="p-4 bg-gray-900 border-t border-gray-800">
         <h5 className="text-white font-black text-base">{coachName} is at your door</h5>
-        <p className="text-xs text-gray-300 mt-0.5 line-clamp-2">{message}</p>
+        <div className="text-xs font-semibold text-cyan-400 mt-0.5">{workoutType}</div>
+        <p className="text-xs text-gray-300 mt-1 line-clamp-2">{message}</p>
 
         <div className="mt-3 flex items-center space-x-3">
           <button
             onClick={onAccept}
-            className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-gray-950 font-black py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-transform active:scale-95 text-sm"
+            className={`tv-focusable flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-gray-950 font-black py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-transform text-sm border-2 ${
+              pipFocus === 'accept'
+                ? 'tv-focused ring-4 ring-cyan-400 border-white scale-105'
+                : 'border-transparent'
+            }`}
           >
             <Play className="w-4 h-4 fill-current" />
             <span>Open & Start Workout</span>
@@ -202,7 +235,11 @@ export const RingPiPModal: React.FC<RingPiPProps> = ({
 
           <button
             onClick={onDismiss}
-            className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors"
+            className={`tv-focusable bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors border-2 ${
+              pipFocus === 'dismiss'
+                ? 'tv-focused ring-4 ring-amber-400 border-white text-white scale-105'
+                : 'border-transparent'
+            }`}
           >
             Later
           </button>

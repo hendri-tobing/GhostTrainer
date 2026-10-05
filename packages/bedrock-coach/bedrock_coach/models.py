@@ -9,7 +9,7 @@ class RepMetric(BaseModel):
     rep_number: int = Field(..., description="1-indexed repetition count")
     depth_percentage: float = Field(..., ge=0.0, le=100.0, description="Squat depth percentage (100% = parallel or below)")
     duration_seconds: float = Field(..., gt=0.0, description="Duration of repetition in seconds")
-    form_issue: Optional[str] = Field(None, description="Any detected form flaw (e.g. 'chest_sag', 'knee_cave')")
+    detected_issue: Optional[str] = Field(None, description="Any detected form flaw (e.g. 'chest_sag', 'knee_cave', 'hip_sag')")
 
 
 class WorkoutSessionData(BaseModel):

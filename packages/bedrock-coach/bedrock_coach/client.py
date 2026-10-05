@@ -1,11 +1,11 @@
-"""AWS Bedrock runtime client wrapper for GhostTrainer."""
-
+import asyncio
 import json
 import logging
 import os
 from typing import Optional, Dict, Any
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+from pydantic import ValidationError
 
 from .models import (
     RealtimeCueRequest,
@@ -63,7 +63,8 @@ class BedrockCoachClient:
 
         try:
             client = self._get_client()
-            response = client.converse(
+            response = await asyncio.to_thread(
+                client.converse,
                 modelId=self.model_id,
                 system=[{"text": SYSTEM_PROMPT_COACH}],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
@@ -98,7 +99,8 @@ class BedrockCoachClient:
 
         try:
             client = self._get_client()
-            response = client.converse(
+            response = await asyncio.to_thread(
+                client.converse,
                 modelId=self.model_id,
                 system=[{"text": SYSTEM_PROMPT_COACH}],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
@@ -116,7 +118,7 @@ class BedrockCoachClient:
 
             parsed = json.loads(output_text)
             return RecoveryBriefResponse(**parsed)
-        except (BotoCoreError, ClientError, json.JSONDecodeError) as e:
+        except (BotoCoreError, ClientError, json.JSONDecodeError, ValidationError) as e:
             logger.warning("AWS Bedrock call failed for recovery brief, generating baseline: %s", str(e))
             avg_depth = (
                 sum(r.depth_percentage for r in session.reps) / len(session.reps)

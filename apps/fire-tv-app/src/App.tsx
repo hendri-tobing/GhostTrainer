@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Activity,
   Award,
   Bell,
   CheckCircle2,
-  ChevronRight,
   Flame,
   Play,
   RotateCcw,
   Sparkles,
   Tv,
-  Volume2,
   AlertTriangle,
   Camera
 } from 'lucide-react';
@@ -35,6 +33,28 @@ interface RecoveryBrief {
   strengths: string[];
   areas_for_improvement: string[];
   recovery_recommendations: string[];
+}
+
+const MCP_BASE = import.meta.env.VITE_MCP_BASE_URL ?? 'http://localhost:8002';
+const RING_BASE = import.meta.env.VITE_RING_BASE_URL ?? 'http://localhost:8001';
+
+// Shared AudioContext module singleton (lazy init + resume)
+let sharedAudioCtx: AudioContext | null = null;
+function getSharedAudioContext(): AudioContext | null {
+  try {
+    if (!sharedAudioCtx) {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass) {
+        sharedAudioCtx = new AudioCtxClass();
+      }
+    }
+    if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume();
+    }
+    return sharedAudioCtx;
+  } catch {
+    return null;
+  }
 }
 
 export default function App() {
@@ -66,7 +86,11 @@ export default function App() {
   const detectorRef = useRef<any>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Squat State Machine Tracker
+  // Session & Timing Refs
+  const lastRingEventIdRef = useRef<string | null>(null);
+  const workoutStartRef = useRef<number | null>(null);
+
+  // Biomechanics State Machine Tracker
   const squatPhaseRef = useRef<'UP' | 'DOWN'>('UP');
   const repStartTimeRef = useRef<number>(Date.now());
   const maxDepthInCurrentRepRef = useRef<number>(0);
@@ -87,10 +111,11 @@ export default function App() {
     }
   };
 
-  // Sound generator
+  // Sound generator using shared AudioContext singleton
   const playBeep = (freq = 440, type: OscillatorType = 'sine', duration = 0.15) => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioCtx = getSharedAudioContext();
+      if (!audioCtx) return;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = type;
@@ -109,6 +134,9 @@ export default function App() {
   // TV D-Pad Keydown Navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Yield key control while Ring PiP alert modal is active
+      if (ringAlert) return;
+
       if (workoutComplete) {
         if (e.key === 'Enter') resetWorkout();
         return;
@@ -134,16 +162,17 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [workoutActive, workoutComplete, focusedIndex, repsCompleted, targetReps]);
+  }, [workoutActive, workoutComplete, focusedIndex, repsCompleted, targetReps, ringAlert]);
 
   // Polling Ring & Alexa MCP Status
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:8002/session/status');
+        const res = await fetch(`${MCP_BASE}/session/status`);
         if (res.ok) {
           const data = await res.json();
-          if (data.last_ring_event && !ringAlert) {
+          if (data.last_ring_event && data.last_ring_event.event_id !== lastRingEventIdRef.current) {
+            lastRingEventIdRef.current = data.last_ring_event.event_id;
             const msg = data.last_ring_event.message || 'Coach Jordan is at your front door!';
             setRingAlert(msg);
             playBeep(880, 'triangle', 0.4);
@@ -161,7 +190,7 @@ export default function App() {
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [workoutActive, ringAlert]);
+  }, [workoutActive]);
 
   // Load MoveNet detector
   useEffect(() => {
@@ -291,7 +320,7 @@ export default function App() {
 
     // Send rep telemetry to Alexa+ MCP server / Bedrock
     try {
-      const res = await fetch('http://localhost:8002/api/telemetry/rep', {
+      const res = await fetch(`${MCP_BASE}/api/telemetry/rep`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -339,6 +368,7 @@ export default function App() {
   };
 
   const startWorkout = () => {
+    workoutStartRef.current = Date.now();
     setWorkoutActive(true);
     setWorkoutComplete(false);
     setRepsCompleted(0);
@@ -357,15 +387,19 @@ export default function App() {
     setWorkoutComplete(true);
     playBeep(659.25, 'sine', 0.3); // E5
 
+    const durationSeconds = workoutStartRef.current
+      ? Math.max(1.0, Math.round((Date.now() - workoutStartRef.current) / 100) / 10)
+      : 60.0;
+
     // Request recovery brief from Alexa MCP / Bedrock
     try {
-      const res = await fetch('http://localhost:8002/api/workout/complete', {
+      const res = await fetch(`${MCP_BASE}/api/workout/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_name: 'Alex',
           exercise_name: selectedExercise,
-          total_duration_seconds: 120.0,
+          total_duration_seconds: durationSeconds,
         }),
       });
       if (res.ok) {
@@ -398,6 +432,8 @@ export default function App() {
     setRepHistory([]);
     setRecoveryBrief(null);
     setLatestCue('Stand in view of camera to begin.');
+    // Fire-and-forget server session reset
+    fetch(`${MCP_BASE}/api/workout/reset`, { method: 'POST' }).catch(() => {});
   };
 
   // Simulates a rep for testing without a physical webcam
@@ -421,7 +457,7 @@ export default function App() {
 
   const triggerSimulatedDing = async () => {
     try {
-      await fetch('http://localhost:8001/api/trigger/ding', {
+      const res = await fetch(`${RING_BASE}/api/trigger/ding`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -431,11 +467,18 @@ export default function App() {
           message: 'Ghost Coach has arrived at your porch with workout gear!',
         }),
       });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.event?.event_id) {
+          lastRingEventIdRef.current = json.event.event_id;
+        }
+      }
       setRingAlert('🔔 Coach Jordan has arrived at your Front Porch!');
       playBeep(880, 'triangle', 0.4);
       speakCue('Coach Jordan has arrived at your front door!');
       setTimeout(() => setRingAlert(null), 6000);
     } catch {
+      lastRingEventIdRef.current = `synthetic_${Date.now()}`;
       setRingAlert('🔔 Coach Jordan has arrived at your Front Porch!');
       setTimeout(() => setRingAlert(null), 6000);
     }
@@ -503,7 +546,7 @@ export default function App() {
           </div>
           <div className="flex items-center space-x-2 bg-emerald-950/60 px-4 py-2 rounded-xl border border-emerald-800 text-emerald-400">
             <Sparkles className="w-5 h-5" />
-            <span className="text-sm font-semibold">AWS Bedrock Claude 3.5</span>
+            <span className="text-sm font-semibold">{detectorReady ? 'AI Vision Ready' : 'AWS Bedrock Claude 3.5'}</span>
           </div>
         </div>
       </header>
@@ -563,6 +606,7 @@ export default function App() {
                   <span className={`text-6xl font-black ${currentDepth >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>
                     {currentDepth > 0 ? `${currentDepth}%` : '--'}
                   </span>
+                  <span className="text-xl font-bold text-gray-500">({Math.round(currentKneeAngle)}°)</span>
                 </div>
                 <span className="text-sm font-semibold text-gray-400">
                   {selectedExercise === 'Squat'
@@ -628,6 +672,11 @@ export default function App() {
                     <li key={i}>• {r}</li>
                   ))}
                 </ul>
+                {repHistory.length > 0 && (
+                  <p className="mt-2 text-xs text-gray-400 font-mono">
+                    Tracked {repHistory.length} reps in session history
+                  </p>
+                )}
               </div>
             </div>
 

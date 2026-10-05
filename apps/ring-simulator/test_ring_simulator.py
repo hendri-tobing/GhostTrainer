@@ -42,3 +42,11 @@ def test_trigger_motion() -> None:
     data = response.json()
     assert data["status"] == "success"
     assert data["event"]["event_type"] == "motion"
+
+
+def test_event_id_unique() -> None:
+    res1 = client.post("/api/trigger/motion").json()
+    res2 = client.post("/api/trigger/motion").json()
+    assert res1["event"]["event_id"] != res2["event"]["event_id"]
+    assert res1["event"]["event_id"].startswith("motion_")
+

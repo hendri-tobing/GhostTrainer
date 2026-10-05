@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Ensure bedrock-coach package is importable
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +39,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -168,6 +168,7 @@ async def handle_mcp(request: Request) -> JSONResponse:
             session_state["target_reps"] = args.get("target_reps", 15)
             session_state["completed_reps"] = 0
             session_state["reps"] = []
+            session_state["last_ring_event"] = None
             return JSONResponse(content={
                 "jsonrpc": "2.0",
                 "id": msg_id,
@@ -228,6 +229,11 @@ class RepTelemetryPayload(BaseModel):
     duration_seconds: float = 1.8
     detected_issue: Optional[str] = None
 
+    @field_validator("depth_percentage")
+    @classmethod
+    def clamp_depth_percentage(cls, v: float) -> float:
+        return min(100.0, max(0.0, float(v)))
+
 
 @app.post("/api/telemetry/rep")
 async def receive_rep_telemetry(payload: RepTelemetryPayload) -> Dict[str, Any]:
@@ -280,4 +286,15 @@ async def finish_workout(payload: WorkoutCompletePayload) -> Dict[str, Any]:
         "status": "completed",
         "brief": brief.model_dump(),
     }
+
+
+@app.post("/api/workout/reset")
+async def reset_session() -> Dict[str, Any]:
+    """Reset the workout session and clear all recorded telemetry."""
+    session_state["active"] = False
+    session_state["completed_reps"] = 0
+    session_state["reps"] = []
+    session_state["last_ring_event"] = None
+    return {"status": "reset", "message": "Session state cleared"}
+
 

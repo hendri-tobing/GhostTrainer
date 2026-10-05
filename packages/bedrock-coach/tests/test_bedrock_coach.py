@@ -20,10 +20,26 @@ def test_rep_metric_validation() -> None:
         rep_number=1,
         depth_percentage=94.5,
         duration_seconds=1.8,
-        form_issue=None,
+        detected_issue=None,
     )
     assert rep.rep_number == 1
     assert rep.depth_percentage == 94.5
+    assert rep.detected_issue is None
+
+
+def test_rep_metric_detected_issue_roundtrip() -> None:
+    rep = RepMetric(
+        rep_number=2,
+        depth_percentage=88.0,
+        duration_seconds=1.6,
+        detected_issue="chest_sag",
+    )
+    assert rep.detected_issue == "chest_sag"
+    dumped = rep.model_dump()
+    assert dumped["detected_issue"] == "chest_sag"
+    restored = RepMetric(**dumped)
+    assert restored.detected_issue == "chest_sag"
+
 
 
 def test_workout_session_data_serialization() -> None:
@@ -69,3 +85,35 @@ async def test_bedrock_client_fallback() -> None:
     assert isinstance(res, RealtimeCueResponse)
     assert res.urgency == "corrective"
     assert "knees" in res.cue_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_bedrock_client_schema_invalid_json_fallback() -> None:
+    """When Bedrock returns JSON that fails Pydantic schema validation, fallback is returned."""
+    client = BedrockCoachClient(region_name="us-east-1")
+
+    class FakeBotoClient:
+        def converse(self, **kwargs: object) -> dict:
+            return {
+                "output": {
+                    "message": {
+                        "content": [{"text": '{"invalid_field": 123}'}]
+                    }
+                }
+            }
+
+    client._get_client = lambda: FakeBotoClient()
+
+    session = WorkoutSessionData(
+        user_name="Alex",
+        exercise_name="Squat",
+        target_reps=10,
+        completed_reps=10,
+        reps=[RepMetric(rep_number=1, depth_percentage=90.0, duration_seconds=1.5)],
+        total_duration_seconds=30.0,
+    )
+    brief = await client.generate_recovery_brief(session)
+    assert isinstance(brief, RecoveryBriefResponse)
+    assert brief.overall_score >= 40
+    assert "completing 10 of 10" in brief.summary
+

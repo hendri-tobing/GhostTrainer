@@ -50,3 +50,40 @@ This document records the exact developer pain points, SDK quirks, emulator limi
 - **Developer Impact:** To avoid frame stuttering on TV hardware, video feeds must share canvas contexts or render simulated SVG/canvas overlays rather than decoding multiple raw H.264/WebRTC streams at once.
 - **Constructive Recommendation:** Amazon Fire OS should expose native multi-stream hardware-accelerated picture-in-picture APIs to HTML5 web apps via custom DOM attributes (e.g., `<video pip="amazon-firetv">`) to bypass browser compositing overhead.
 
+---
+
+## 6. Pydantic v2 Schema Drift & Unknown Field Ingestion in MCP Tool Payloads
+
+### Friction Point: Silent Field Dropping vs. Strict Downstream Validation Failures
+- **Symptom / Challenge:** In distributed multi-agent architectures (Ring Webhook → Alexa+ MCP Server → AWS Bedrock Coach), payload models often evolve asynchronously across services. When the frontend sent `detected_issue` while the telemetry model expected `form_issue`, Pydantic silently ignored the unknown keyword argument during initial ingestion, only to cause strict validation failures or silent loss of biomechanical data downstream when constructing `WorkoutSessionData`.
+- **Developer Impact:** Subtle schema mismatches between telemetry emitters and LLM prompt constructors went undetected at ingress, resulting in AI coaching prompts lacking the user's actual exercise flaws.
+- **Constructive Recommendation:** Adopt `model_config = ConfigDict(extra="ignore")` where forward compatibility is necessary, or explicitly configure `extra="forbid"` on ingestion endpoints during integration testing to catch field naming drift between microservices before production rollout.
+
+---
+
+## 7. Graceful Fallbacks Masking Underlying 500 API Regressions
+
+### Friction Point: Local UI Fallbacks Can Conceal Server-Side Exceptions During Testing
+- **Symptom / Challenge:** GhostTrainer provides resilient local fallbacks for both rep coaching and post-workout recovery briefs so that network partitions never disrupt the user's workout. However, during automated and manual UI testing, these `catch` blocks silently swallowed HTTP 500 errors (such as over-depth validation errors when depth exceeded 100%), rendering the UI as "healthy" while the backend was throwing unhandled exceptions.
+- **Developer Impact:** Developers could observe normal UI behavior while backend telemetry pipelines were silently crashing, delaying discovery of constraint violations.
+- **Constructive Recommendation:** Combine fallback resilience with explicit client-side telemetry/error reporting (e.g., dedicated console warning telemetry or a non-blocking debug toast on dev builds) and ensure backend unit tests exhaustively assert HTTP 200/500 boundaries before relying on end-to-end UI tests.
+
+---
+
+## 8. Canvas 2D `roundRect` API Compatibility on Fire OS / Silk Browser Runtimes
+
+### Friction Point: `CanvasRenderingContext2D.roundRect` Requires Chromium ≥99 / Fire OS 8+
+- **Symptom / Challenge:** Rendering rounded badges and Picture-in-Picture camera frames on an HTML5 `<canvas>` using `ctx.roundRect()` throws runtime `TypeError: ctx.roundRect is not a function` on older Fire TV devices running Fire OS 6 or 7 (Chromium runtime versions below 99).
+- **Developer Impact:** The animated doorbell PiP preview and synthetic camera overlay failed to render completely on legacy Fire TV hardware without explicit feature detection.
+- **Constructive Recommendation:** Implement defensive feature checking (`typeof ctx.roundRect === 'function' ? ctx.roundRect(...) : ctx.rect(...)`) and recommend that Amazon Silk documentation explicitly outline browser engine version matrices corresponding to each Fire TV Stick / Cube generation.
+
+---
+
+## 9. Synchronous Boto3 Calls Blocking the Asyncio Event Loop in High-Throughput MCP Servers
+
+### Friction Point: Default Boto3 Clients Are Synchronous and Block FastAPI Event Loops
+- **Symptom / Challenge:** Standard `boto3.client('bedrock-runtime').converse(...)` calls are synchronous and blocking. In an asynchronous FastAPI / MCP server handling concurrent rep telemetry webhooks, invoking synchronous boto3 inside `async def` endpoints blocks the entire event loop, starving Ring webhook listeners and HTTP status polling.
+- **Developer Impact:** Under multi-rep burst telemetry, API response latency spiked dramatically and concurrent Ring webhook dispatches timed out.
+- **Constructive Recommendation:** Wrap all synchronous boto3 SDK calls in `await asyncio.to_thread(client.converse, ...)` or adopt `aioboto3` natively for real-time AWS Bedrock conversational agent backends to ensure non-blocking high-throughput event loops.
+
+

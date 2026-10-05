@@ -107,10 +107,10 @@ export function analyzeSquatBiomechanics(
   // Calculate knee flexion angle (180 = straight leg, 90 = parallel)
   const kneeAngle = calculateAngle(hip, knee, ankle);
 
-  // Depth percentage: 170 deg -> 0%, 90 deg -> 100%, 75 deg -> 115%
+  // Depth percentage: 170 deg -> 0%, 90 deg -> 100% (clamped to 100%)
   const depthPct = Math.max(
     0,
-    Math.min(120, Math.round(((170 - kneeAngle) / (170 - 90)) * 100))
+    Math.min(100, Math.round(((170 - kneeAngle) / (170 - 90)) * 100))
   );
 
   // Torso forward lean angle
@@ -192,10 +192,10 @@ export function analyzePushupBiomechanics(
   // Calculate elbow flexion angle (180 = straight arms plank, 90 = chest to floor)
   const elbowAngle = calculateAngle(shoulder, elbow, wrist);
 
-  // Depth percentage: 165 deg -> 0%, 90 deg -> 100%
+  // Depth percentage: 165 deg -> 0%, 90 deg -> 100% (clamped to 100%)
   const depthPct = Math.max(
     0,
-    Math.min(125, Math.round(((165 - elbowAngle) / (165 - 90)) * 100))
+    Math.min(100, Math.round(((165 - elbowAngle) / (165 - 90)) * 100))
   );
 
   let detectedFlaw: string | null = null;

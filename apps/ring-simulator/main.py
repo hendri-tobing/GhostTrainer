@@ -1,7 +1,7 @@
 """Ring Doorbell Simulator for GhostTrainer.
 
 Simulates doorbell dings, motion detection events, and porch presence notifications,
-dispatching webhooks to Alexa+ MCP and connected display devices.
+dispatching webhooks to the Alexa+ MCP Server.
 """
 
 import os
@@ -9,6 +9,7 @@ import logging
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
+from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,14 +28,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Webhook targets
 ALEXA_MCP_WEBHOOK_URL = os.getenv("ALEXA_MCP_WEBHOOK_URL", "http://localhost:8002/webhook/ring")
-FIRE_TV_WEBHOOK_URL = os.getenv("FIRE_TV_WEBHOOK_URL", "http://localhost:3000/api/ring-event")
 
 # State
 event_history: List[Dict[str, Any]] = []
@@ -74,7 +74,7 @@ async def _dispatch_webhook(url: str, payload: Dict[str, Any]) -> Optional[Dict[
 async def trigger_ding(payload: RingTriggerPayload) -> Dict[str, Any]:
     """Simulate a doorbell chime / coach arrival."""
     event_data = {
-        "event_id": f"ring_{int(datetime.now(timezone.utc).timestamp())}",
+        "event_id": f"ring_{uuid4().hex[:16]}",
         "event_type": "ding",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "device_id": "ring_front_door_pro",
@@ -85,15 +85,12 @@ async def trigger_ding(payload: RingTriggerPayload) -> Dict[str, Any]:
     }
     event_history.append(event_data)
 
-    # Dispatch webhooks to Alexa MCP and Fire TV concurrently
-    alexa_task = _dispatch_webhook(ALEXA_MCP_WEBHOOK_URL, event_data)
-    ftv_task = _dispatch_webhook(FIRE_TV_WEBHOOK_URL, event_data)
-    results = await asyncio.gather(alexa_task, ftv_task, return_exceptions=True)
+    dispatch_res = await _dispatch_webhook(ALEXA_MCP_WEBHOOK_URL, event_data)
 
     return {
         "status": "success",
         "event": event_data,
-        "dispatch_results": results,
+        "dispatch_results": [dispatch_res],
     }
 
 
@@ -101,7 +98,7 @@ async def trigger_ding(payload: RingTriggerPayload) -> Dict[str, Any]:
 async def trigger_motion() -> Dict[str, Any]:
     """Simulate motion detected on porch."""
     event_data = {
-        "event_id": f"motion_{int(datetime.now(timezone.utc).timestamp())}",
+        "event_id": f"motion_{uuid4().hex[:16]}",
         "event_type": "motion",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "device_id": "ring_front_door_pro",
@@ -110,8 +107,8 @@ async def trigger_motion() -> Dict[str, Any]:
         "message": "Movement detected at Front Door. Coach standing by.",
     }
     event_history.append(event_data)
-    await _dispatch_webhook(ALEXA_MCP_WEBHOOK_URL, event_data)
-    return {"status": "success", "event": event_data}
+    dispatch_res = await _dispatch_webhook(ALEXA_MCP_WEBHOOK_URL, event_data)
+    return {"status": "success", "event": event_data, "dispatch_results": [dispatch_res]}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -146,7 +143,7 @@ async def dashboard() -> str:
         <div class="container">
             <span class="badge">Amazon Hackathon 2026 Simulator</span>
             <h1>🔔 GhostTrainer Ring Doorbell Simulator</h1>
-            <p>Emulate punctual doorstep summon events. When triggered, Ring notifies the Alexa+ MCP Server and Fire TV Smart Mirror that the coach has arrived.</p>
+            <p>Emulate punctual doorstep summon events. When triggered, Ring notifies the Alexa+ MCP Server.</p>
             <div style="margin: 24px 0;">
                 <button class="btn btn-accent" onclick="triggerEvent('ding')">🔔 Ring Doorbell (Coach Arrives)</button>
                 <button class="btn" onclick="triggerEvent('motion')">🚶 Trigger Porch Motion</button>
