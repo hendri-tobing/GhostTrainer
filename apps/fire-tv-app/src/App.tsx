@@ -469,8 +469,13 @@ export default function App() {
       });
       if (res.ok) {
         const json = await res.json();
-        if (json.event?.event_id) {
-          lastRingEventIdRef.current = json.event.event_id;
+        const incomingId = json.event?.event_id;
+        // If poller already consumed this event while the POST was in-flight, avoid duplicate audio/alert
+        if (incomingId && lastRingEventIdRef.current === incomingId) {
+          return;
+        }
+        if (incomingId) {
+          lastRingEventIdRef.current = incomingId;
         }
       }
       setRingAlert('🔔 Coach Jordan has arrived at your Front Porch!');
@@ -480,6 +485,8 @@ export default function App() {
     } catch {
       lastRingEventIdRef.current = `synthetic_${Date.now()}`;
       setRingAlert('🔔 Coach Jordan has arrived at your Front Porch!');
+      playBeep(880, 'triangle', 0.4);
+      speakCue('Coach Jordan has arrived at your front door!');
       setTimeout(() => setRingAlert(null), 6000);
     }
   };

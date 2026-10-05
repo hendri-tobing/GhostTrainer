@@ -1,3 +1,5 @@
+"""AWS Bedrock client for GhostTrainer AI fitness coaching."""
+
 import asyncio
 import json
 import logging
