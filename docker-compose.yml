@@ -1,0 +1,41 @@
+services:
+  ring-simulator:
+    build:
+      context: ./apps/ring-simulator
+      dockerfile: Dockerfile
+    container_name: ghosttrainer-ring-simulator
+    ports:
+      - "8001:8001"
+    environment:
+      - ALEXA_MCP_WEBHOOK_URL=http://alexa-mcp-server:8002/webhook/ring
+    networks:
+      - ghosttrainer-net
+
+  alexa-mcp-server:
+    build:
+      context: .
+      dockerfile: ./apps/alexa-mcp-server/Dockerfile
+    container_name: ghosttrainer-alexa-mcp
+    ports:
+      - "8002:8002"
+    environment:
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-3-5-sonnet-20241022-v2:0}
+    networks:
+      - ghosttrainer-net
+
+  fire-tv-app:
+    build:
+      context: ./apps/fire-tv-app
+      dockerfile: Dockerfile
+    container_name: ghosttrainer-fire-tv
+    ports:
+      - "3000:80"
+    networks:
+      - ghosttrainer-net
+
+networks:
+  ghosttrainer-net:
+    driver: bridge
