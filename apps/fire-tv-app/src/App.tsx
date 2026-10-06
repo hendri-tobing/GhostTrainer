@@ -10,7 +10,8 @@ import {
   Sparkles,
   Tv,
   AlertTriangle,
-  Camera
+  Camera,
+  Bot
 } from 'lucide-react';
 import {
   createMoveNetDetector,
@@ -18,6 +19,10 @@ import {
   analyzePushupBiomechanics,
   drawSkeleton,
 } from './services/poseDetection';
+import {
+  getSyntheticPoseFrame,
+  renderSyntheticAvatarBackdrop,
+} from './services/syntheticPose';
 import { RingPiPModal } from './components/RingPiPModal';
 
 interface RepData {
@@ -81,6 +86,7 @@ export default function App() {
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [detectorReady, setDetectorReady] = useState<boolean>(false);
+  const [syntheticMode, setSyntheticMode] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectorRef = useRef<any>(null);
@@ -208,18 +214,107 @@ export default function App() {
     initDetector();
   }, []);
 
-  // Computer Vision Pose Detection Loop
+  // Idle preview for Synthetic Mode
+  useEffect(() => {
+    if (!syntheticMode || workoutActive) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = 1280;
+    canvas.height = 720;
+    const frame = getSyntheticPoseFrame(selectedExercise, 0.0, 1280, 720, false);
+    renderSyntheticAvatarBackdrop(ctx, 1280, 720, frame.keypoints, selectedExercise);
+    drawSkeleton(ctx, frame.keypoints, null);
+  }, [syntheticMode, workoutActive, selectedExercise]);
+
+  // Computer Vision Pose Detection & Synthetic Kinematics Loop
   useEffect(() => {
     let active = true;
 
     const detectPose = async () => {
-      if (
-        !active ||
-        !workoutActive ||
-        !videoRef.current ||
-        !canvasRef.current ||
-        videoRef.current.readyState < 2
-      ) {
+      if (!active || !workoutActive) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (syntheticMode) {
+        if (canvas.width !== 1280 || canvas.height !== 720) {
+          canvas.width = 1280;
+          canvas.height = 720;
+        }
+
+        const now = Date.now();
+        const cycleDuration = 2200; // 2.2s per rep
+        const elapsed = now - repStartTimeRef.current;
+        const progress = Math.min(1.0, (elapsed % cycleDuration) / cycleDuration);
+
+        // Inject form flaw on the 3rd repetition (repsCompleted === 2)
+        const injectFlaw = repsCompleted === 2;
+
+        const frame = getSyntheticPoseFrame(
+          selectedExercise,
+          progress,
+          canvas.width,
+          canvas.height,
+          injectFlaw
+        );
+
+        renderSyntheticAvatarBackdrop(
+          ctx,
+          canvas.width,
+          canvas.height,
+          frame.keypoints,
+          selectedExercise
+        );
+
+        const bio = frame.biomechanics;
+        if (bio) {
+          setCurrentDepth(bio.squatDepthPct);
+          setCurrentKneeAngle(bio.kneeAngle);
+          drawSkeleton(ctx, frame.keypoints, bio.detectedFlaw);
+
+          if (bio.detectedFlaw) {
+            currentFlawRef.current = bio.detectedFlaw;
+          }
+
+          // Biomechanics state machine for synthetic motion
+          if (squatPhaseRef.current === 'UP' && bio.phase === 'BOTTOM') {
+            squatPhaseRef.current = 'DOWN';
+            maxDepthInCurrentRepRef.current = bio.squatDepthPct;
+          } else if (squatPhaseRef.current === 'DOWN') {
+            maxDepthInCurrentRepRef.current = Math.max(
+              maxDepthInCurrentRepRef.current,
+              bio.squatDepthPct
+            );
+            if (bio.phase === 'STANDING' && elapsed > 1600) {
+              // Synthetic Rep Completed!
+              squatPhaseRef.current = 'UP';
+              const duration = Math.max(1.0, Math.round((elapsed / 1000) * 10) / 10);
+              repStartTimeRef.current = Date.now();
+              const finishedDepth = maxDepthInCurrentRepRef.current;
+              const issue = currentFlawRef.current || undefined;
+              currentFlawRef.current = null;
+              maxDepthInCurrentRepRef.current = 0;
+
+              handleRepFinished(finishedDepth, duration, issue);
+            }
+          }
+        } else {
+          drawSkeleton(ctx, frame.keypoints, null);
+        }
+
+        if (active && workoutActive) {
+          animationFrameRef.current = requestAnimationFrame(detectPose);
+        }
+        return;
+      }
+
+      // Camera-based MoveNet detection path
+      if (!videoRef.current || videoRef.current.readyState < 2) {
         if (active && workoutActive) {
           animationFrameRef.current = requestAnimationFrame(detectPose);
         }
@@ -227,11 +322,6 @@ export default function App() {
       }
 
       const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) return;
-
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -244,9 +334,10 @@ export default function App() {
           const poses = await detectorRef.current.estimatePoses(video);
           if (poses && poses.length > 0) {
             const keypoints = poses[0].keypoints;
-            const bio = selectedExercise === 'Squat'
-              ? analyzeSquatBiomechanics(keypoints)
-              : analyzePushupBiomechanics(keypoints);
+            const bio =
+              selectedExercise === 'Squat'
+                ? analyzeSquatBiomechanics(keypoints)
+                : analyzePushupBiomechanics(keypoints);
 
             if (bio) {
               setCurrentDepth(bio.squatDepthPct);
@@ -293,7 +384,7 @@ export default function App() {
       }
     };
 
-    if (workoutActive && cameraActive) {
+    if (workoutActive && (cameraActive || syntheticMode)) {
       animationFrameRef.current = requestAnimationFrame(detectPose);
     }
 
@@ -303,7 +394,7 @@ export default function App() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [workoutActive, cameraActive, repsCompleted, targetReps]);
+  }, [workoutActive, cameraActive, syntheticMode, selectedExercise, repsCompleted, targetReps]);
 
   const handleRepFinished = async (depth: number, duration: number, issue?: string) => {
     const nextRep = repsCompleted + 1;
@@ -547,13 +638,59 @@ export default function App() {
             </button>
           </div>
 
+          {/* Vision Feed Mode Switcher */}
+          <div className="flex items-center space-x-1 bg-gray-900/90 p-1.5 rounded-2xl border border-gray-800">
+            <button
+              onClick={() => {
+                if (!workoutActive) {
+                  setSyntheticMode(false);
+                  startCamera();
+                }
+              }}
+              disabled={workoutActive}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all ${
+                !syntheticMode
+                  ? 'bg-cyan-500 text-gray-950 shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Use physical USB webcam"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Camera</span>
+            </button>
+            <button
+              onClick={() => {
+                if (!workoutActive) {
+                  setSyntheticMode(true);
+                  setCameraError(null);
+                }
+              }}
+              disabled={workoutActive}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all ${
+                syntheticMode
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Run MoveNet kinematics simulation without physical camera"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span>Synthetic Demo</span>
+            </button>
+          </div>
+
           <div className="flex items-center space-x-2 bg-gray-900/80 px-4 py-2 rounded-xl border border-gray-800">
             <Tv className="w-5 h-5 text-gray-400" />
             <span className="text-sm font-semibold text-gray-300">10-Foot UI Active</span>
           </div>
           <div className="flex items-center space-x-2 bg-emerald-950/60 px-4 py-2 rounded-xl border border-emerald-800 text-emerald-400">
             <Sparkles className="w-5 h-5" />
-            <span className="text-sm font-semibold">{detectorReady ? 'AI Vision Ready' : 'AWS Bedrock Claude 3.5'}</span>
+            <span className="text-sm font-semibold">
+              {syntheticMode
+                ? 'Synthetic Kinematics Active'
+                : detectorReady
+                ? 'AI Vision Ready'
+                : 'AWS Bedrock Claude 3.5'}
+            </span>
           </div>
         </div>
       </header>
@@ -563,16 +700,20 @@ export default function App() {
         {/* Video feed & Skeleton Overlay */}
         <video
           ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-60"
+          className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 ${
+            syntheticMode ? 'opacity-0 pointer-events-none' : 'opacity-60'
+          }`}
           playsInline
           muted
         />
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full pointer-events-none z-10 transform -scale-x-100"
+          className={`absolute inset-0 w-full h-full pointer-events-none z-10 ${
+            syntheticMode ? '' : 'transform -scale-x-100'
+          }`}
         />
 
-        {!cameraActive && (
+        {!cameraActive && !syntheticMode && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-8 text-center bg-gradient-to-b from-gray-950/40 via-gray-900/60 to-gray-950/90">
             <div className="w-24 h-24 rounded-full bg-cyan-500/10 border-2 border-cyan-400/40 flex items-center justify-center mb-6">
               <Camera className="w-12 h-12 text-cyan-400" />
@@ -581,6 +722,25 @@ export default function App() {
             <p className="text-lg text-gray-300 max-w-lg mb-6">
               {cameraError || `Position yourself 6-8 feet away from your Fire TV. MoveNet tracks ${selectedExercise.toLowerCase()} depth and cadence automatically.`}
             </p>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={startCamera}
+                className="px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-bold rounded-xl flex items-center space-x-2 shadow-lg"
+              >
+                <Camera className="w-5 h-5" />
+                <span>Connect Camera</span>
+              </button>
+              <button
+                onClick={() => {
+                  setSyntheticMode(true);
+                  setCameraError(null);
+                }}
+                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center space-x-2 shadow-lg border border-indigo-400"
+              >
+                <Bot className="w-5 h-5" />
+                <span>Activate Synthetic Vision Demo</span>
+              </button>
+            </div>
           </div>
         )}
 
