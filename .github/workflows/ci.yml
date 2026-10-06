@@ -2,12 +2,12 @@ name: GhostTrainer CI
 
 on:
   push:
-    branches: [main, feat/*]
+    branches: [main]
   pull_request:
     branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
           pip install -e packages/bedrock-coach
           pip install -r apps/alexa-mcp-server/requirements.txt
           pip install -r apps/ring-simulator/requirements.txt
-          pip install pytest pytest-asyncio
+          pip install -r requirements-ci.txt
 
       - name: Run Pytest Test Suite
         run: |
@@ -94,7 +94,19 @@ jobs:
         run: |
           PYTHONPATH=. python -m uvicorn main:app --app-dir apps/ring-simulator --port 8001 &
           PYTHONPATH=. python -m uvicorn main:app --app-dir apps/alexa-mcp-server --port 8002 &
-          sleep 4
+
+          echo "Waiting for services to become healthy..."
+          for i in $(seq 1 15); do
+            if curl -sf http://127.0.0.1:8001/health > /dev/null && curl -sf http://127.0.0.1:8002/health > /dev/null; then
+              echo "Services became healthy after ${i}s."
+              break
+            fi
+            if [ "$i" -eq 15 ]; then
+              echo "Services failed to become healthy within 15 seconds."
+              exit 1
+            fi
+            sleep 1
+          done
 
       - name: Execute End-to-End Ambient AI Demo
         run: |
