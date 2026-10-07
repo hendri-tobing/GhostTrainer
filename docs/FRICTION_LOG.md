@@ -86,4 +86,14 @@ This document records the exact developer pain points, SDK quirks, emulator limi
 - **Developer Impact:** Under multi-rep burst telemetry, API response latency spiked dramatically and concurrent Ring webhook dispatches timed out.
 - **Constructive Recommendation:** Wrap all synchronous boto3 SDK calls in `await asyncio.to_thread(client.converse, ...)` or adopt `aioboto3` natively for real-time AWS Bedrock conversational agent backends to ensure non-blocking high-throughput event loops.
 
+---
+
+## 10. Fire TV USB Camera Availability Constraints & Synthetic Vision Emulation
+
+### Friction Point: Lack of Universal USB Camera Support across Fire TV Form Factors
+- **Symptom / Challenge:** Building real-time computer vision applications on Fire TV faces hardware variability: Fire TV Sticks and legacy Fire TV editions do not universally support external USB Video Class (UVC) webcams or lack standard WebRTC `navigator.mediaDevices.getUserMedia` hardware drivers. In automated CI pipelines, headless testing, and review environments, `getUserMedia` throws `NotFoundError: Requested device not found`.
+- **Developer Impact:** Reviewers and automated CI environments without dedicated UVC cameras attached to physical TV sets could not verify the MoveNet pose estimation pipeline, rep state machines, or real-time Bedrock voice feedback without manually clicking mock buttons.
+- **Constructive Recommendation:** Amazon should provide a standardized synthetic camera injection flag or emulator driver in the Fire TV App Tester / Silk Browser Developer Settings. For GhostTrainer, we engineered a native mathematical MoveNet 17-keypoint kinematic simulation engine (`syntheticPose.ts`), allowing seamless offline, headless, and camera-free demonstration of full-body biomechanics, dynamic flaw injection, and real-time audio/voice coaching.
+
+
 
