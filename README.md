@@ -59,7 +59,12 @@ cp .env.example .env
 ```
 *(Note: If AWS credentials are unset, GhostTrainer automatically falls back to deterministic rule-based coaching algorithms for zero-failure local testing and offline demos!)*
 
-### 2. Run with Docker Compose
+### 2. Launch Demo Stack
+Run the entire cross-device stack locally with a single command:
+```bash
+./scripts/start_demo.sh
+```
+Or run with Docker Compose:
 ```bash
 docker compose up --build
 ```
