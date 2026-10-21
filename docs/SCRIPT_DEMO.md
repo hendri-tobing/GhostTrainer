@@ -1,6 +1,6 @@
 # GhostTrainer Demo Video Script (3-Minute Presentation)
 
-**Track:** Fire TV Track ($25,000) & AWS Bedrock ($5,000)  
+**Track:** Fire TV Track & AWS Bedrock  
 **Theme:** Turning ambient smart home devices into an unskippable personal fitness coach.
 
 ---

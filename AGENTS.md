@@ -37,6 +37,6 @@ Welcome, AI Agents and developers! This document serves as the absolute source o
 
 ---
 
-## 4. The Friction Log Requirement (10% Bonus)
+## 4. The Friction Log Requirement
 
-Whenever you encounter a developer pain point, SDK quirk, latency bottleneck, or emulator limitation while building, document it immediately in `docs/FRICTION_LOG.md`. This directly supports our strategy to capture the Amazon 10% bonus for developer feedback!
+Whenever you encounter a developer pain point, SDK quirk, latency bottleneck, or emulator limitation while building, document it immediately in `docs/FRICTION_LOG.md`. This directly supports providing comprehensive feedback for the Amazon developer ecosystem!

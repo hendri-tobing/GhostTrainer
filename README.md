@@ -1,8 +1,8 @@
 # GhostTrainer: Cross-Device Ambient AI Fitness Coach
 
 [![Amazon Developer Hackathon 2026](https://img.shields.io/badge/Hackathon-Amazon%20Developer%202026-orange.svg)](https://amazonappdev2026.devpost.com/)
-[![Fire TV Track](https://img.shields.io/badge/Track-Fire%20TV%20($25k)-blue.svg)](https://amazonappdev2026.devpost.com/)
-[![AWS Builder Track](https://img.shields.io/badge/Mini%20Challenge-AWS%20Bedrock%20($5k)-yellow.svg)](https://amazonappdev2026.devpost.com/)
+[![Fire TV Track](https://img.shields.io/badge/Track-Fire%20TV-blue.svg)](https://amazonappdev2026.devpost.com/)
+[![AWS Builder Track](https://img.shields.io/badge/Mini%20Challenge-AWS%20Bedrock-yellow.svg)](https://amazonappdev2026.devpost.com/)
 [![Open Source](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/hendri-tobing/GhostTrainer/actions/workflows/ci.yml/badge.svg)](https://github.com/hendri-tobing/GhostTrainer/actions/workflows/ci.yml)
 
@@ -33,7 +33,7 @@ GhostTrainer/
 ├── docker-compose.yml          # Local multi-service orchestration
 ├── docs/
 │   ├── ARCHITECTURE.md         # Detailed cross-device flow diagrams
-│   ├── FRICTION_LOG.md         # Official 10% bonus friction log for Amazon judges
+│   ├── FRICTION_LOG.md         # Detailed developer feedback & friction log for Amazon ecosystem
 │   └── SCRIPT_DEMO.md          # 3-minute video production script
 ├── apps/
 │   ├── ring-simulator/         # Python FastAPI Ring Doorbell event mock & webhook
@@ -84,14 +84,6 @@ python3 scripts/demo_flow.py
 ```bash
 pytest packages/bedrock-coach/tests/ apps/ring-simulator/test_ring_simulator.py apps/alexa-mcp-server/test_alexa_mcp.py
 ```
-
----
-
-## 🏆 Hackathon Targets & Prizes
-- **Primary Track:** Fire TV ($25,000 Cash)
-- **Mini Challenge 1:** AWS Builder via Bedrock ($5,000 Cash + $5k Credits)
-- **Mini Challenge 2:** Open Source MIT License ($5,000 Cash + $5k Credits)
-- **Total Potential Prize:** $35,000 Cash + $10,000 AWS Credits
 
 ---
 

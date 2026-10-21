@@ -1,7 +1,7 @@
 # GhostTrainer Friction Log & Amazon Ecosystem Feedback
 
-> **Submission Track:** Fire TV ($25k) & AWS Bedrock ($5k)  
-> **Bonus Goal:** 10% Bonus for Detailed Developer Feedback on Amazon APIs, SDKs, and Tooling.
+> **Submission Track:** Fire TV & AWS Bedrock  
+> **Topic:** Detailed Developer Feedback & Friction Log on Amazon APIs, SDKs, and Tooling.
 
 This document records the exact developer pain points, SDK quirks, emulator limitations, and latency bottlenecks encountered while building **GhostTrainer** across Ring, Alexa+ MCP, Fire TV, and AWS Bedrock.
 
