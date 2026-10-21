@@ -43,5 +43,5 @@
   - Ring Doorbell Webhook simulator
   - Alexa+ MCP Server over Streamable HTTP
   - Fire TV React 10-Foot UI + MoveNet
-  - AWS Bedrock Claude 3.5 Sonnet Engine
+  - AWS Bedrock Claude Sonnet Engine
 - **Narration:** *"GhostTrainer: Ambient intelligence making fitness proactive, frictionless, and unskippable."*

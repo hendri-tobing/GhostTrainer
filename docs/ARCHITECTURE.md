@@ -9,7 +9,7 @@ sequenceDiagram
     participant Ring as Ring Doorbell (Sim)
     participant Alexa as Alexa+ MCP Server
     participant FTV as Fire TV Smart Mirror
-    participant Bedrock as AWS Bedrock (Claude 3.5 Sonnet)
+    participant Bedrock as AWS Bedrock (Claude Sonnet 5.5 / 3.5)
 
     Note over Ring,U: Scheduled Workout Alarm
     Ring->>U: Punctual Doorstep Chime & Porch Display
@@ -51,5 +51,5 @@ sequenceDiagram
    - MoveNet Pose Estimation running in browser via TensorFlow.js for squat depth & rep tracking.
 
 4. **Bedrock Coach Package (`packages/bedrock-coach`)**
-   - Python client integrating with AWS Bedrock (`anthropic.claude-3-5-sonnet`).
+   - Python client integrating with AWS Bedrock (`anthropic.claude-sonnet-5-5` or `anthropic.claude-3-5-sonnet`).
    - Analyzes biomechanical telemetry, detects fatigue degradation, and generates real-time audio/visual cues.

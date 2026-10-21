@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class BedrockCoachClient:
-    """Client for invoking Claude 3.5 Sonnet on AWS Bedrock."""
+    """Client for invoking Anthropic Claude (Sonnet 5.5 / 3.5) on AWS Bedrock."""
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class BedrockCoachClient:
     ) -> None:
         self.region_name = region_name or os.getenv("AWS_REGION", "us-east-1")
         self.model_id = model_id or os.getenv(
-            "BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"
+            "BEDROCK_MODEL_ID", "global.anthropic.claude-sonnet-5-5"
         )
         self._client: Optional[Any] = None
 

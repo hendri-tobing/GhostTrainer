@@ -81,7 +81,7 @@ MCP_TOOLS = [
     },
     {
         "name": "get_realtime_coaching_cue",
-        "description": "Call AWS Bedrock Claude 3.5 Sonnet to generate an audio cue for the user's current rep.",
+        "description": "Call AWS Bedrock Claude Sonnet to generate an audio cue for the user's current rep.",
         "inputSchema": {
             "type": "object",
             "properties": {

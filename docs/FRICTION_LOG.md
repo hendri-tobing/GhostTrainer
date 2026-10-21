@@ -37,7 +37,7 @@ This document records the exact developer pain points, SDK quirks, emulator limi
 ## 4. AWS Bedrock Boto3 / SDK Stream Telemetry & Latency Optimization
 
 ### Friction Point: Converse API Latency for Real-Time Voice Coaching Loops
-- **Symptom / Challenge:** Using Claude 3.5 Sonnet on AWS Bedrock via `bedrock-runtime.converse_stream` provides incredible reasoning, but round-trip time (RTT) for streaming conversational rep corrections needs strict token limits and caching to stay within conversational voice cadence (<1.2s target).
+- **Symptom / Challenge:** Using Claude Sonnet on AWS Bedrock via `bedrock-runtime.converse_stream` provides incredible reasoning, but round-trip time (RTT) for streaming conversational rep corrections needs strict token limits and caching to stay within conversational voice cadence (<1.2s target).
 - **Developer Impact:** Prompt engineering requires aggressive system prompt trimming and structured JSON streaming so that motivational coaching can be read aloud or displayed on Fire TV without perceptible lag.
 - **Constructive Recommendation:** Introduce prompt prefix caching out of the box in the Bedrock Converse API for streaming fitness/real-time agents to cut first-byte latency in half.
 

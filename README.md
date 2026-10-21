@@ -19,7 +19,7 @@
 3. **The Ambient Smart Mirror (Fire TV 10-foot UI):**  
    Your living room Fire TV springs to life with computer vision pose estimation (MoveNet/MediaPipe), tracking reps, squat depth, and form accuracy in real-time.
 4. **Agentic Feedback Loop (AWS Bedrock):**  
-   Claude 3.5 Sonnet processes session telemetry to dynamically adjust your routine and generate a personalized post-workout recovery brief.
+   Claude Sonnet (5.5 / 3.5) processes session telemetry to dynamically adjust your routine and generate a personalized post-workout recovery brief.
 
 ---
 
@@ -50,7 +50,7 @@ GhostTrainer/
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+ / npm or yarn
-- AWS Account with Bedrock access (Claude 3.5 Sonnet enabled in `us-east-1` or `us-west-2`)
+- AWS Account with Bedrock access (Claude Sonnet 5.5 / 3.5 enabled in `us-east-1` or `us-west-2`)
 
 ### 1. Configure Environment Variables
 Copy and fill out your credentials:
