@@ -141,7 +141,7 @@ async def dashboard() -> str:
     </head>
     <body>
         <div class="container">
-            <span class="badge">Amazon Hackathon 2026 Simulator</span>
+            <span class="badge">GhostTrainer Ambient Simulator</span>
             <h1>🔔 GhostTrainer Ring Doorbell Simulator</h1>
             <p>Emulate punctual doorstep summon events. When triggered, Ring notifies the Alexa+ MCP Server.</p>
             <div style="margin: 24px 0;">

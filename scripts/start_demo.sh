@@ -14,6 +14,14 @@ if [ ! -f "${VENV_PYTHON}" ]; then
     VENV_PYTHON="python3"
 fi
 
+# Load .env if present
+if [ -f "${ROOT_DIR}/.env" ]; then
+    echo "📄 Loading environment variables from ${ROOT_DIR}/.env..."
+    set -a
+    source "${ROOT_DIR}/.env"
+    set +a
+fi
+
 echo "======================================================================"
 echo "👻 GHOSTTRAINER DEMO STACK LAUNCHER"
 echo "======================================================================"
