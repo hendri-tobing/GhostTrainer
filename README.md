@@ -29,7 +29,6 @@
 GhostTrainer/
 ├── LICENSE                     # MIT Open Source License
 ├── README.md                   # Comprehensive documentation & setup guide
-├── AGENTS.md                   # Core instructions & guidelines for AI coding agents
 ├── docker-compose.yml          # Local multi-service orchestration
 ├── docs/
 │   ├── ARCHITECTURE.md         # Detailed cross-device flow diagrams
